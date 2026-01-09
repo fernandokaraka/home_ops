@@ -1,0 +1,129 @@
+# HomeOps - Gerenciando sua casa como um negócio
+
+Adorei a sacada! Morar sozinho (ou dividir apê, como você faz com o Milron) realmente tem essa complexidade de "microempresa": finanças, estoque, manutenção, fornecedores, rotinas... E a maioria das pessoas gerencia isso com uma mistura caótica de planilhas, apps separados e memória.
+
+Vou te ajudar a expandir essa ideia e montar algo estruturado.
+
+---
+
+## A Oportunidade
+
+**O problema real:** As pessoas usam 5-10 apps diferentes (banco, lista de compras, lembretes, planilha de gastos, WhatsApp pra síndico...) e ainda assim esquecem de pagar o IPTU, deixam comida vencer, não sabem quanto gastam com delivery, e a manutenção do ar-condicionado sempre pega de surpresa.
+
+**O insight:** Ninguém quer "mais um app de finanças" ou "mais um app de tarefas". O que falta é a **visão integrada** — o "ERP doméstico" que conecta tudo.
+
+---
+
+## Expandindo as Funcionalidades
+
+### Núcleo do App (MVP)
+
+1. **Dashboard financeiro doméstico**
+   - Contas fixas com vencimentos e alertas inteligentes
+   - Categorização automática (moradia, alimentação, lazer, pets...)
+   - Meta de gastos por categoria
+   - Integração com Open Banking (fase 2)
+
+2. **Gestão de estoque doméstico**
+   - Despensa/geladeira com validades
+   - Lista de compras inteligente baseada no consumo
+   - "Tá acabando" automático pra itens recorrentes
+
+3. **Manutenção preventiva**
+   - Calendário de manutenções (filtro do ar, dedetização, revisão do carro...)
+   - Histórico de serviços e fornecedores
+   - Garantias de eletrodomésticos com alertas de vencimento
+
+4. **Rotinas e tarefas domésticas**
+   - Divisão de tarefas (pra quem divide apê)
+   - Rotinas recorrentes (faxina, trocar lençol, regar plantas)
+   - Gamificação leve pra criar hábitos
+
+### Expansões Futuras
+
+- **Modo República/Roommates:** Divisão de contas, quem deve pra quem, escala de tarefas
+- **Documentos da casa:** Contratos, apólices de seguro, manuais de eletrodomésticos digitalizados
+- **Fornecedores confiáveis:** Eletricista, encanador, diarista — com histórico e avaliações pessoais
+- **Consumo consciente:** Tracking de água/luz com dicas de economia
+- **Integração com assistentes:** "Alexa, adiciona leite na lista"
+
+---
+
+## Diferenciais Competitivos
+
+| Concorrente      | O que faz           | Gap que você preenche                    |
+|------------------|---------------------|------------------------------------------|
+| Organizze/Mobills| Só finanças         | Não conecta com rotina doméstica         |
+| Todoist/TickTick | Só tarefas          | Não tem contexto de "casa"               |
+| Bring!/OurGroceries | Só lista de compras | Não integra com estoque/finanças      |
+| Planilhas        | Tudo manual         | Trabalhoso, sem automação                |
+
+**Seu diferencial:** A **integração contextual**. Quando você registra uma compra de mercado, ela entra nas finanças E atualiza o estoque E sugere receitas com o que você comprou.
+
+---
+
+## Modelo de Negócio
+
+**Freemium com camadas:**
+
+- **Free:** Dashboard básico, até 2 moradores, funcionalidades core
+- **Premium Individual (R$ 14,90/mês):** Integrações, relatórios avançados, backup ilimitado
+- **Premium Família/República (R$ 24,90/mês):** Até 6 moradores, divisão de contas automática
+
+**Monetização adicional:**
+- Marketplace de fornecedores (comissão por lead qualificado)
+- Parcerias com supermercados (cashback em lista de compras)
+- White-label pra imobiliárias/condomínios
+
+---
+
+## Plano de Desenvolvimento
+
+### Fase 1 - Validação (4-6 semanas)
+**Objetivo:** Provar que as pessoas querem isso
+
+1. **Landing page** com proposta de valor clara
+2. **Waitlist** com pesquisa de prioridades ("o que mais te dá dor de cabeça?")
+3. **Protótipo no Figma** das telas principais
+4. **5-10 entrevistas** com potenciais usuários (amigos que moram sozinhos, casais, repúblicas)
+
+**Métricas de sucesso:** 200+ inscritos na waitlist, padrões claros nas entrevistas
+
+### Fase 2 - MVP (8-12 semanas)
+**Objetivo:** App funcional com core features
+
+**Stack sugerida (aproveitando tua experiência):**
+- **Frontend:** React Native ou Flutter (você já tá trabalhando com Flutter no projeto Integrapet)
+- **Backend:** Supabase (já tá usando no PDI, perfeito pra MVP rápido)
+- **Auth:** Supabase Auth
+- **Notificações:** OneSignal ou Firebase
+
+**Features do MVP:**
+- Cadastro de contas fixas + alertas
+- Lista de compras colaborativa
+- Calendário de manutenções
+- Dashboard simples de gastos
+
+### Fase 3 - Beta Privado (4-6 semanas)
+**Objetivo:** Feedback real de uso
+
+- 50-100 usuários beta
+- Ciclos semanais de feedback
+- Iteração rápida nas features mais pedidas
+
+### Fase 4 - Lançamento Público
+- App nas stores
+- Marketing de conteúdo (TikTok/Reels sobre "adultar" é ouro)
+- Programa de indicação
+
+---
+
+## Próximos Passos Práticos
+
+1. **Validar a dor:** Faz um Google Forms rápido e manda pros amigos que moram sozinhos. Pergunta: qual a maior dor de cabeça de gerenciar a casa? Quantos apps você usa pra isso?
+
+2. **Escolher o foco inicial:** Não tenta fazer tudo. Qual módulo resolve a dor mais aguda? Eu chutaria finanças domésticas + manutenções preventivas.
+
+3. **Prototipar rápido:** 2-3 telas no Figma pra mostrar a visão
+
+4. **Testar com você e Milron:** Vocês dois são o primeiro caso de uso perfeito (roommates)

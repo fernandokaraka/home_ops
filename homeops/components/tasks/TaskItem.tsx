@@ -1,18 +1,21 @@
+import { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import type { Task } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
+import { CompletionModal } from "./CompletionModal";
 
 interface TaskItemProps {
   task: Task;
-  onComplete: (id: string) => void;
+  onComplete: (id: string, completedAt?: string) => void;
   onPress?: (task: Task) => void;
 }
 
 export function TaskItem({ task, onComplete, onPress }: TaskItemProps) {
   const router = useRouter();
   const { theme } = useTheme();
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
   const isCompleted = task.status === "completed";
   const isOverdue =
     task.status === "pending" &&
@@ -52,6 +55,17 @@ export function TaskItem({ task, onComplete, onPress }: TaskItemProps) {
     }
   };
 
+  const handleCheckboxPress = () => {
+    if (!isCompleted) {
+      setShowCompletionModal(true);
+    }
+  };
+
+  const handleComplete = (taskId: string, completedAt?: string) => {
+    onComplete(taskId, completedAt);
+    setShowCompletionModal(false);
+  };
+
   return (
     <TouchableOpacity
       onPress={handlePress}
@@ -65,7 +79,7 @@ export function TaskItem({ task, onComplete, onPress }: TaskItemProps) {
       <View style={styles.row}>
         {/* Checkbox */}
         <TouchableOpacity
-          onPress={() => onComplete(task.id)}
+          onPress={handleCheckboxPress}
           style={[
             styles.checkbox,
             { borderColor: theme.border },
@@ -185,6 +199,14 @@ export function TaskItem({ task, onComplete, onPress }: TaskItemProps) {
           style={styles.arrow}
         />
       </View>
+
+      {/* Completion Modal */}
+      <CompletionModal
+        visible={showCompletionModal}
+        task={task}
+        onClose={() => setShowCompletionModal(false)}
+        onComplete={handleComplete}
+      />
     </TouchableOpacity>
   );
 }

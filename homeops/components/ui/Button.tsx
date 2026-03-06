@@ -11,6 +11,7 @@ interface ButtonProps {
   loading?: boolean;
   fullWidth?: boolean;
   icon?: React.ReactNode;
+  style?: ViewStyle | ViewStyle[];
 }
 
 const getVariantStyles = (theme: ThemeColors): Record<string, { button: ViewStyle; text: TextStyle; loader: string }> => ({
@@ -67,6 +68,7 @@ export const Button = forwardRef<View, ButtonProps>(
       loading = false,
       fullWidth = false,
       icon,
+      style,
     },
     ref
   ) => {
@@ -87,6 +89,7 @@ export const Button = forwardRef<View, ButtonProps>(
           sizeStyle.button,
           fullWidth && styles.fullWidth,
           (disabled || loading) && styles.disabled,
+          style,
         ]}
       >
         {loading ? (

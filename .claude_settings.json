@@ -1,0 +1,34 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  },
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read(./**)",
+      "Write(./**)",
+      "Edit(./**)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Read(C:\\Users\\ferna\\OneDrive\\Documentos\\GitHub\\home_ops/**)",
+      "Write(C:\\Users\\ferna\\OneDrive\\Documentos\\GitHub\\home_ops/**)",
+      "Edit(C:\\Users\\ferna\\OneDrive\\Documentos\\GitHub\\home_ops/**)",
+      "Glob(C:\\Users\\ferna\\OneDrive\\Documentos\\GitHub\\home_ops/**)",
+      "Grep(C:\\Users\\ferna\\OneDrive\\Documentos\\GitHub\\home_ops/**)",
+      "Read(C:\\Users\\ferna\\OneDrive\\Documentos\\GitHub\\home_ops\\.auto-claude\\ideation/**)",
+      "Write(C:\\Users\\ferna\\OneDrive\\Documentos\\GitHub\\home_ops\\.auto-claude\\ideation/**)",
+      "Edit(C:\\Users\\ferna\\OneDrive\\Documentos\\GitHub\\home_ops\\.auto-claude\\ideation/**)",
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__context7__resolve-library-id(*)",
+      "mcp__context7__get-library-docs(*)",
+      "mcp__graphiti-memory__search_nodes(*)",
+      "mcp__graphiti-memory__search_facts(*)",
+      "mcp__graphiti-memory__add_episode(*)",
+      "mcp__graphiti-memory__get_episodes(*)",
+      "mcp__graphiti-memory__get_entity_edge(*)"
+    ]
+  }
+}

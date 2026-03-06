@@ -8,11 +8,13 @@ import {
   Platform,
   Alert,
   StyleSheet,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Button, Input } from "@/components/ui";
+import { AttachmentPicker, type AttachmentFile } from "@/components/shared/AttachmentPicker";
 import { useMaintenanceStore } from "@/stores/maintenanceStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -21,7 +23,7 @@ import type { MaintenanceCategory } from "@/types";
 export default function NewMaintenanceScreen() {
   const router = useRouter();
   const { user, household } = useAuthStore();
-  const { categories, fetchCategories, createItem, isLoading } = useMaintenanceStore();
+  const { categories, fetchCategories, createItem, addAttachment, isLoading } = useMaintenanceStore();
   const { theme } = useTheme();
 
   const [name, setName] = useState("");
@@ -35,6 +37,7 @@ export default function NewMaintenanceScreen() {
   const [provider, setProvider] = useState("");
   const [providerPhone, setProviderPhone] = useState("");
   const [alertDays, setAlertDays] = useState("7");
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
 
   useEffect(() => {
     fetchCategories();
@@ -58,6 +61,14 @@ export default function NewMaintenanceScreen() {
       }
     }
     return null;
+  };
+
+  const handleAttachmentAdded = (file: AttachmentFile) => {
+    setAttachments((prev) => [...prev, file]);
+  };
+
+  const handleAttachmentDelete = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
@@ -86,11 +97,19 @@ export default function NewMaintenanceScreen() {
       created_by: user?.id,
     };
 
-    const { error } = await createItem(itemData);
+    const { error, data } = await createItem(itemData);
     if (error) {
       Alert.alert("Erro", error);
       return;
     }
+
+    // Upload attachments if any
+    if (data && attachments.length > 0) {
+      for (const file of attachments) {
+        await addAttachment(data.id, household.id, file, user?.id);
+      }
+    }
+
     router.back();
   };
 
@@ -154,6 +173,80 @@ export default function NewMaintenanceScreen() {
 
           <Input label="Alertar quantos dias antes?" placeholder="7" value={alertDays} onChangeText={setAlertDays} keyboardType="numeric" icon="notifications-outline" />
 
+          {/* Attachments */}
+          <AttachmentPicker
+            onAttachmentAdded={handleAttachmentAdded}
+            currentFilesCount={attachments.length}
+            maxFiles={10}
+          />
+
+          {/* Display selected attachments */}
+          {attachments.length > 0 && (
+            <View style={styles.attachmentsContainer}>
+              <Text style={[styles.attachmentsTitle, { color: theme.text }]}>
+                Anexos selecionados ({attachments.length})
+              </Text>
+              {attachments.map((file, index) => {
+                const isImage = file.type.startsWith("image/");
+                return (
+                  <View
+                    key={index}
+                    style={[
+                      styles.attachmentItem,
+                      { backgroundColor: theme.surface, borderColor: theme.border },
+                    ]}
+                  >
+                    {/* Thumbnail or Icon */}
+                    <View style={[styles.thumbnailContainer, { backgroundColor: theme.surfaceVariant }]}>
+                      {isImage ? (
+                        <Image
+                          source={{ uri: file.uri }}
+                          style={styles.thumbnail}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Ionicons
+                          name="document-text"
+                          size={32}
+                          color={theme.primary}
+                        />
+                      )}
+                    </View>
+
+                    {/* File Info */}
+                    <View style={styles.fileInfo}>
+                      <Text
+                        style={[styles.fileName, { color: theme.text }]}
+                        numberOfLines={1}
+                        ellipsizeMode="middle"
+                      >
+                        {file.name}
+                      </Text>
+                      {file.size && (
+                        <Text style={[styles.fileSize, { color: theme.textMuted }]}>
+                          {file.size < 1024
+                            ? `${file.size} B`
+                            : file.size < 1024 * 1024
+                            ? `${(file.size / 1024).toFixed(1)} KB`
+                            : `${(file.size / (1024 * 1024)).toFixed(1)} MB`}
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Delete Button */}
+                    <TouchableOpacity
+                      onPress={() => handleAttachmentDelete(index)}
+                      style={styles.deleteButton}
+                      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={theme.danger} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           <View style={styles.submitContainer}>
             <Button onPress={handleSubmit} loading={isLoading} disabled={!name.trim()} fullWidth size="lg">Cadastrar Item</Button>
           </View>
@@ -186,5 +279,14 @@ const styles = StyleSheet.create({
   optionButtonTextSelected: { color: '#FFFFFF', fontWeight: '500' },
   providerBox: { borderRadius: 12, padding: 16, marginBottom: 16 },
   providerTitle: { fontWeight: '600', marginBottom: 12 },
+  attachmentsContainer: { marginBottom: 16 },
+  attachmentsTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
+  attachmentItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  thumbnailContainer: { width: 56, height: 56, borderRadius: 8, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  thumbnail: { width: '100%', height: '100%' },
+  fileInfo: { flex: 1, marginLeft: 12, marginRight: 8 },
+  fileName: { fontSize: 14, fontWeight: '500', marginBottom: 4 },
+  fileSize: { fontSize: 12 },
+  deleteButton: { padding: 8 },
   submitContainer: { marginTop: 16, marginBottom: 32 },
 });

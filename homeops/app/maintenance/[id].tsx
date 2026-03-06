@@ -14,18 +14,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Button, Card } from "@/components/ui";
 import { StatusBadge } from "@/components/shared";
+import { AttachmentList } from "@/components/shared/AttachmentList";
 import {
   useMaintenanceStore,
   getDaysUntilMaintenance,
   getMaintenanceStatus,
 } from "@/stores/maintenanceStore";
 import { useTheme } from "@/contexts/ThemeContext";
-import type { MaintenanceItem } from "@/types";
+import type { MaintenanceItem, Attachment } from "@/types";
 
 export default function MaintenanceDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, history, fetchHistory, deleteItem, isLoading } = useMaintenanceStore();
+  const { items, history, attachments, fetchHistory, fetchAttachments, deleteItem, isLoading } = useMaintenanceStore();
   const { theme } = useTheme();
 
   const [item, setItem] = useState<MaintenanceItem | null>(null);
@@ -35,6 +36,7 @@ export default function MaintenanceDetailScreen() {
     setItem(found || null);
     if (id) {
       fetchHistory(id);
+      fetchAttachments(id);
     }
   }, [id, items]);
 
@@ -64,6 +66,12 @@ export default function MaintenanceDetailScreen() {
   const handleCallProvider = () => {
     if (item?.provider_phone) {
       Linking.openURL(`tel:${item.provider_phone}`);
+    }
+  };
+
+  const handleViewAttachment = (attachment: Attachment) => {
+    if (attachment.file_url) {
+      Linking.openURL(attachment.file_url);
     }
   };
 
@@ -226,6 +234,17 @@ export default function MaintenanceDetailScreen() {
             </View>
           </View>
         </Card>
+
+        {/* Attachments */}
+        {attachments.length > 0 && (
+          <Card style={styles.attachmentsCard}>
+            <AttachmentList
+              attachments={attachments}
+              onView={handleViewAttachment}
+              editable={false}
+            />
+          </Card>
+        )}
 
         {/* Provider Card */}
         {(item.preferred_provider || item.provider_phone) && (
@@ -427,6 +446,9 @@ const styles = StyleSheet.create({
   infoValue: {
     fontWeight: '500',
     marginTop: 4,
+  },
+  attachmentsCard: {
+    marginBottom: 16,
   },
   providerCard: {
     marginBottom: 16,

@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator } from "react-native";
 import { useAuthStore } from "@/stores/authStore";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
+import { ErrorBoundary } from "@/components/shared";
 
 function RootLayoutContent() {
   const { isLoading, isInitialized, initialize, session } = useAuthStore();
@@ -23,7 +24,7 @@ function RootLayoutContent() {
   }
 
   return (
-    <>
+    <ErrorBoundary>
       <StatusBar style={isDark ? "light" : "dark"} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
@@ -35,7 +36,7 @@ function RootLayoutContent() {
         <Stack.Screen name="settings" options={{ presentation: "modal" }} />
         <Stack.Screen name="shopping" options={{ presentation: "modal" }} />
       </Stack>
-    </>
+    </ErrorBoundary>
   );
 }
 

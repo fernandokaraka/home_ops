@@ -8,11 +8,13 @@ import {
   Platform,
   Alert,
   StyleSheet,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Button, Input, Card } from "@/components/ui";
+import { AttachmentPicker, type AttachmentFile } from "@/components/shared/AttachmentPicker";
 import { useTaskStore } from "@/stores/taskStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -23,7 +25,7 @@ type RecurrenceType = "daily" | "weekly" | "monthly" | null;
 export default function NewTaskScreen() {
   const router = useRouter();
   const { user, household } = useAuthStore();
-  const { categories, fetchCategories, createTask, isLoading } = useTaskStore();
+  const { categories, fetchCategories, createTask, addAttachment, isLoading } = useTaskStore();
   const { theme } = useTheme();
 
   const [title, setTitle] = useState("");
@@ -35,6 +37,7 @@ export default function NewTaskScreen() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>(null);
   const [estimatedMinutes, setEstimatedMinutes] = useState<string>("");
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
 
   useEffect(() => {
     fetchCategories();
@@ -90,6 +93,14 @@ export default function NewTaskScreen() {
     return null;
   };
 
+  const handleAttachmentAdded = (file: AttachmentFile) => {
+    setAttachments((prev) => [...prev, file]);
+  };
+
+  const handleAttachmentDelete = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async () => {
     if (!title.trim()) {
       Alert.alert("Erro", "Digite um titulo para a tarefa");
@@ -117,11 +128,18 @@ export default function NewTaskScreen() {
       created_by: user?.id,
     };
 
-    const { error } = await createTask(taskData);
+    const { error, data } = await createTask(taskData);
 
     if (error) {
       Alert.alert("Erro", error);
       return;
+    }
+
+    // Upload attachments if any
+    if (data && attachments.length > 0) {
+      for (const file of attachments) {
+        await addAttachment(data.id, household.id, file, user?.id);
+      }
     }
 
     router.back();
@@ -362,6 +380,61 @@ export default function NewTaskScreen() {
             icon="hourglass-outline"
           />
 
+          {/* Attachments */}
+          <AttachmentPicker
+            onAttachmentAdded={handleAttachmentAdded}
+            currentFilesCount={attachments.length}
+            maxFiles={10}
+          />
+
+          {/* Display selected attachments */}
+          {attachments.length > 0 && (
+            <View style={styles.attachmentsContainer}>
+              <Text style={[styles.attachmentsTitle, { color: theme.text }]}>
+                Anexos selecionados ({attachments.length})
+              </Text>
+              {attachments.map((file, index) => {
+                const isImage = file.type.startsWith("image/");
+                return (
+                  <View
+                    key={index}
+                    style={[
+                      styles.attachmentItem,
+                      { backgroundColor: theme.surface, borderColor: theme.border },
+                    ]}
+                  >
+                    {/* Thumbnail or Icon */}
+                    <View style={[styles.thumbnailContainer, { backgroundColor: theme.surfaceVariant }]}>
+                      {isImage ? (
+                        <Image source={{ uri: file.uri }} style={styles.thumbnail} />
+                      ) : (
+                        <Ionicons name="document-outline" size={24} color={theme.gray[600]} />
+                      )}
+                    </View>
+
+                    {/* File info */}
+                    <View style={styles.fileInfo}>
+                      <Text style={[styles.fileName, { color: theme.text }]} numberOfLines={1}>
+                        {file.name}
+                      </Text>
+                      <Text style={[styles.fileSize, { color: theme.gray[500] }]}>
+                        {file.size ? `${(file.size / 1024).toFixed(1)} KB` : "Tamanho desconhecido"}
+                      </Text>
+                    </View>
+
+                    {/* Delete button */}
+                    <TouchableOpacity
+                      onPress={() => handleAttachmentDelete(index)}
+                      style={styles.deleteButton}
+                    >
+                      <Ionicons name="close-circle" size={24} color={theme.danger} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           {/* Submit Button */}
           <View style={styles.submitContainer}>
             <Button
@@ -522,6 +595,50 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 14,
     fontWeight: '500',
+  },
+  attachmentsContainer: {
+    marginBottom: 16,
+  },
+  attachmentsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  attachmentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  thumbnailContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  fileInfo: {
+    flex: 1,
+  },
+  fileName: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  fileSize: {
+    fontSize: 12,
+  },
+  deleteButton: {
+    padding: 4,
   },
   submitContainer: {
     marginTop: 16,

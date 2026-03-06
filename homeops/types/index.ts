@@ -73,6 +73,7 @@ export interface Task {
   created_by: string;
   created_at: string;
   updated_at: string;
+  attachments?: Attachment[];
 }
 
 export interface TaskCompletion {
@@ -113,6 +114,7 @@ export interface MaintenanceItem {
   created_by: string;
   created_at: string;
   updated_at: string;
+  attachments?: Attachment[];
 }
 
 export interface MaintenanceHistory {
@@ -172,6 +174,39 @@ export interface Transaction {
   receipt_url?: string | null;
   created_by: string;
   created_at: string;
+  attachments?: Attachment[];
+}
+
+// Budget Types
+export interface Budget {
+  id: string;
+  household_id: string;
+  category_id?: string | null;
+  category?: FinanceCategory | null;
+  month: string;
+  amount: number;
+  notes?: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Financial Goal Types
+export interface FinancialGoal {
+  id: string;
+  household_id: string;
+  name: string;
+  description?: string | null;
+  target_amount: number;
+  current_amount: number;
+  target_date: string;
+  status: 'in_progress' | 'completed' | 'cancelled';
+  completed_at?: string | null;
+  icon?: string | null;
+  color?: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // Monthly Summary
@@ -181,6 +216,24 @@ export interface MonthlySummary {
   total_expenses: number;
   total_income: number;
   balance: number;
+}
+
+// Attachment Types
+export type AttachmentItemType = 'maintenance_item' | 'transaction' | 'task';
+
+export interface Attachment {
+  id: string;
+  household_id: string;
+  item_id: string;
+  item_type: AttachmentItemType;
+  file_name: string;
+  file_url: string;
+  file_type: string;
+  file_size?: number | null;
+  description?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // Inventory Types

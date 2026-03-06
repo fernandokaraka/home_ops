@@ -1,15 +1,21 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
-import type { Task, TaskCategory } from "@/types";
+import type { Task, TaskCategory, Attachment } from "@/types";
 import {
   scheduleTaskReminder,
   cancelNotificationsByTag,
   scheduleAllTaskReminders,
 } from "@/services/notificationService";
+import {
+  uploadFile,
+  deleteFile,
+  generateStoragePath,
+} from "@/services/storageService";
 
 interface TaskState {
   tasks: Task[];
   categories: TaskCategory[];
+  attachments: Attachment[];
   isLoading: boolean;
   error: string | null;
 }
@@ -17,17 +23,26 @@ interface TaskState {
 interface TaskActions {
   fetchTasks: (householdId: string) => Promise<void>;
   fetchCategories: () => Promise<void>;
-  createTask: (task: Partial<Task>) => Promise<{ error: string | null }>;
+  createTask: (task: Partial<Task>) => Promise<{ error: string | null; data?: Task }>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<{ error: string | null }>;
   deleteTask: (id: string) => Promise<{ error: string | null }>;
   completeTask: (id: string, userId: string) => Promise<{ error: string | null }>;
   skipTask: (id: string) => Promise<{ error: string | null }>;
+  fetchAttachments: (taskId: string) => Promise<void>;
+  addAttachment: (
+    taskId: string,
+    householdId: string,
+    file: { uri: string; name: string; type: string; size?: number },
+    userId?: string
+  ) => Promise<{ error: string | null }>;
+  deleteAttachment: (attachmentId: string) => Promise<{ error: string | null }>;
   clearError: () => void;
 }
 
 export const useTaskStore = create<TaskState & TaskActions>((set, get) => ({
   tasks: [],
   categories: [],
+  attachments: [],
   isLoading: false,
   error: null,
 
@@ -98,7 +113,7 @@ export const useTaskStore = create<TaskState & TaskActions>((set, get) => ({
       scheduleTaskReminder(data);
     }
 
-    return { error: null };
+    return { error: null, data };
   },
 
   updateTask: async (id: string, updates: Partial<Task>) => {
@@ -230,6 +245,110 @@ export const useTaskStore = create<TaskState & TaskActions>((set, get) => ({
     }
 
     return get().updateTask(id, { status: "skipped" });
+  },
+
+  fetchAttachments: async (taskId: string) => {
+    const { data, error } = await supabase
+      .from("attachments")
+      .select("*")
+      .eq("item_id", taskId)
+      .eq("item_type", "task")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return;
+    }
+
+    set({ attachments: data || [] });
+  },
+
+  addAttachment: async (
+    taskId: string,
+    householdId: string,
+    file: { uri: string; name: string; type: string; size?: number },
+    userId?: string
+  ) => {
+    set({ isLoading: true, error: null });
+
+    // Generate unique storage path
+    const storagePath = generateStoragePath(householdId, file.name);
+
+    // Upload file to Supabase Storage
+    const fileUrl = await uploadFile(file.uri, "attachments", storagePath);
+
+    if (!fileUrl) {
+      set({ isLoading: false, error: "Erro ao fazer upload do arquivo" });
+      return { error: "Erro ao fazer upload do arquivo" };
+    }
+
+    // Create attachment record in database
+    const { data, error } = await supabase
+      .from("attachments")
+      .insert({
+        household_id: householdId,
+        item_id: taskId,
+        item_type: "task",
+        file_name: file.name,
+        file_url: fileUrl,
+        file_type: file.type,
+        file_size: file.size || null,
+        created_by: userId || null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      // Clean up uploaded file if database insert fails
+      await deleteFile("attachments", storagePath);
+      set({ isLoading: false, error: error.message });
+      return { error: error.message };
+    }
+
+    set((state) => ({
+      attachments: [data, ...state.attachments],
+      isLoading: false,
+    }));
+
+    return { error: null };
+  },
+
+  deleteAttachment: async (attachmentId: string) => {
+    set({ isLoading: true, error: null });
+
+    // Get attachment details to extract storage path
+    const attachment = get().attachments.find((a) => a.id === attachmentId);
+    if (!attachment) {
+      set({ isLoading: false, error: "Anexo não encontrado" });
+      return { error: "Anexo não encontrado" };
+    }
+
+    // Extract storage path from file URL
+    // URL format: https://[project].supabase.co/storage/v1/object/public/attachments/[path]
+    const urlParts = attachment.file_url.split("/attachments/");
+    const storagePath = urlParts.length > 1 ? urlParts[1] : null;
+
+    // Delete from database first
+    const { error: dbError } = await supabase
+      .from("attachments")
+      .delete()
+      .eq("id", attachmentId);
+
+    if (dbError) {
+      set({ isLoading: false, error: dbError.message });
+      return { error: dbError.message };
+    }
+
+    // Delete file from storage
+    if (storagePath) {
+      await deleteFile("attachments", storagePath);
+    }
+
+    set((state) => ({
+      attachments: state.attachments.filter((a) => a.id !== attachmentId),
+      isLoading: false,
+    }));
+
+    return { error: null };
   },
 
   clearError: () => set({ error: null }),

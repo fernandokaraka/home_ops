@@ -9,19 +9,23 @@ import {
   Alert,
   ActivityIndicator,
   StyleSheet,
+  Image,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Button, Input } from "@/components/ui";
+import { AttachmentPicker, type AttachmentFile } from "@/components/shared/AttachmentPicker";
 import { useMaintenanceStore } from "@/stores/maintenanceStore";
+import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/contexts/ThemeContext";
-import type { MaintenanceCategory, MaintenanceItem } from "@/types";
+import type { MaintenanceCategory, MaintenanceItem, Attachment } from "@/types";
 
 export default function EditMaintenanceScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, categories, fetchCategories, updateItem, isLoading } = useMaintenanceStore();
+  const { user, household } = useAuthStore();
+  const { items, categories, attachments, fetchCategories, updateItem, fetchAttachments, addAttachment, deleteAttachment, isLoading } = useMaintenanceStore();
   const { theme } = useTheme();
 
   const [item, setItem] = useState<MaintenanceItem | null>(null);
@@ -37,6 +41,7 @@ export default function EditMaintenanceScreen() {
   const [providerPhone, setProviderPhone] = useState("");
   const [alertDays, setAlertDays] = useState("7");
   const [loading, setLoading] = useState(true);
+  const [newAttachments, setNewAttachments] = useState<AttachmentFile[]>([]);
 
   useEffect(() => {
     fetchCategories();
@@ -57,6 +62,9 @@ export default function EditMaintenanceScreen() {
       setProvider(found.preferred_provider || "");
       setProviderPhone(found.provider_phone || "");
       setAlertDays(found.alert_days_before?.toString() || "7");
+
+      // Fetch existing attachments
+      fetchAttachments(found.id);
       setLoading(false);
     } else {
       setLoading(false);
@@ -83,6 +91,34 @@ export default function EditMaintenanceScreen() {
     return null;
   };
 
+  const handleAttachmentAdded = (file: AttachmentFile) => {
+    setNewAttachments((prev) => [...prev, file]);
+  };
+
+  const handleNewAttachmentDelete = (index: number) => {
+    setNewAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleExistingAttachmentDelete = async (attachmentId: string) => {
+    Alert.alert(
+      "Confirmar exclusao",
+      "Deseja realmente excluir este anexo?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            const { error } = await deleteAttachment(attachmentId);
+            if (error) {
+              Alert.alert("Erro", error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleSubmit = async () => {
     if (!name.trim()) {
       Alert.alert("Erro", "Digite um nome para o item");
@@ -90,6 +126,10 @@ export default function EditMaintenanceScreen() {
     }
     if (!item) {
       Alert.alert("Erro", "Item nao encontrado");
+      return;
+    }
+    if (!household?.id) {
+      Alert.alert("Erro", "Household nao encontrado");
       return;
     }
 
@@ -112,6 +152,14 @@ export default function EditMaintenanceScreen() {
       Alert.alert("Erro", error);
       return;
     }
+
+    // Upload new attachments if any
+    if (newAttachments.length > 0) {
+      for (const file of newAttachments) {
+        await addAttachment(item.id, household.id, file, user?.id);
+      }
+    }
+
     router.back();
   };
 
@@ -194,6 +242,130 @@ export default function EditMaintenanceScreen() {
 
           <Input label="Alertar quantos dias antes?" placeholder="7" value={alertDays} onChangeText={setAlertDays} keyboardType="numeric" icon="notifications-outline" />
 
+          {/* Attachments */}
+          <AttachmentPicker
+            onAttachmentAdded={handleAttachmentAdded}
+            currentFilesCount={attachments.length + newAttachments.length}
+            maxFiles={10}
+          />
+
+          {/* Display existing attachments */}
+          {attachments.length > 0 && (
+            <View style={styles.attachmentsContainer}>
+              <Text style={[styles.attachmentsTitle, { color: theme.text }]}>
+                Anexos existentes ({attachments.length})
+              </Text>
+              {attachments.map((attachment) => {
+                const isImage = attachment.file_type.startsWith("image/");
+                return (
+                  <View
+                    key={attachment.id}
+                    style={[
+                      styles.attachmentItem,
+                      { backgroundColor: theme.surface, borderColor: theme.border },
+                    ]}
+                  >
+                    {/* Thumbnail or Icon */}
+                    <View style={[styles.thumbnailContainer, { backgroundColor: theme.surfaceVariant }]}>
+                      {isImage ? (
+                        <Image
+                          source={{ uri: attachment.file_url }}
+                          style={styles.thumbnail}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Ionicons name="document-outline" size={24} color={theme.gray[500]} />
+                      )}
+                    </View>
+
+                    {/* File Info */}
+                    <View style={styles.fileInfo}>
+                      <Text
+                        style={[styles.fileName, { color: theme.text }]}
+                        numberOfLines={1}
+                      >
+                        {attachment.file_name}
+                      </Text>
+                      {attachment.file_size && (
+                        <Text style={[styles.fileSize, { color: theme.textSecondary }]}>
+                          {(attachment.file_size / 1024).toFixed(1)} KB
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Delete Button */}
+                    <TouchableOpacity
+                      onPress={() => handleExistingAttachmentDelete(attachment.id)}
+                      style={styles.deleteButton}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={theme.danger} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Display new attachments to be uploaded */}
+          {newAttachments.length > 0 && (
+            <View style={styles.attachmentsContainer}>
+              <Text style={[styles.attachmentsTitle, { color: theme.text }]}>
+                Novos anexos ({newAttachments.length})
+              </Text>
+              {newAttachments.map((file, index) => {
+                const isImage = file.type.startsWith("image/");
+                return (
+                  <View
+                    key={index}
+                    style={[
+                      styles.attachmentItem,
+                      { backgroundColor: theme.surface, borderColor: theme.border },
+                    ]}
+                  >
+                    {/* Thumbnail or Icon */}
+                    <View style={[styles.thumbnailContainer, { backgroundColor: theme.surfaceVariant }]}>
+                      {isImage ? (
+                        <Image
+                          source={{ uri: file.uri }}
+                          style={styles.thumbnail}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Ionicons name="document-outline" size={24} color={theme.gray[500]} />
+                      )}
+                    </View>
+
+                    {/* File Info */}
+                    <View style={styles.fileInfo}>
+                      <Text
+                        style={[styles.fileName, { color: theme.text }]}
+                        numberOfLines={1}
+                      >
+                        {file.name}
+                      </Text>
+                      {file.size && (
+                        <Text style={[styles.fileSize, { color: theme.textSecondary }]}>
+                          {(file.size / 1024).toFixed(1)} KB
+                        </Text>
+                      )}
+                      <View style={[styles.newBadge, { backgroundColor: theme.primaryLight }]}>
+                        <Text style={[styles.newBadgeText, { color: theme.primary }]}>Novo</Text>
+                      </View>
+                    </View>
+
+                    {/* Delete Button */}
+                    <TouchableOpacity
+                      onPress={() => handleNewAttachmentDelete(index)}
+                      style={styles.deleteButton}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={theme.danger} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           <View style={styles.submitContainer}>
             <Button onPress={handleSubmit} loading={isLoading} disabled={!name.trim()} fullWidth size="lg">Salvar Alteracoes</Button>
           </View>
@@ -228,5 +400,53 @@ const styles = StyleSheet.create({
   optionButtonTextSelected: { color: '#FFFFFF', fontWeight: '500' },
   providerBox: { borderRadius: 12, padding: 16, marginBottom: 16 },
   providerTitle: { fontWeight: '600', marginBottom: 12 },
+  attachmentsContainer: { marginTop: 16, marginBottom: 16 },
+  attachmentsTitle: { fontSize: 14, fontWeight: '600', marginBottom: 12 },
+  attachmentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  thumbnailContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  fileInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  fileName: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  fileSize: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  newBadge: {
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  newBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    padding: 8,
+  },
   submitContainer: { marginTop: 16, marginBottom: 32 },
 });

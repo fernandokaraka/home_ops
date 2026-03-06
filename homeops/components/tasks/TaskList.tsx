@@ -2,11 +2,11 @@ import { View, Text, FlatList, RefreshControl, StyleSheet } from "react-native";
 import { TaskItem } from "./TaskItem";
 import { EmptyState } from "@/components/shared";
 import { useTheme } from "@/contexts/ThemeContext";
-import type { Task } from "@/types";
+import type { Task, TaskCompletionCallback } from "@/types";
 
 interface TaskListProps {
   tasks: Task[];
-  onComplete: (id: string) => void;
+  onComplete: TaskCompletionCallback;
   onTaskPress?: (task: Task) => void;
   onRefresh?: () => void;
   refreshing?: boolean;

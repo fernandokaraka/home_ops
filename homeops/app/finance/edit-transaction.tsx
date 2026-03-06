@@ -9,19 +9,23 @@ import {
   Alert,
   ActivityIndicator,
   StyleSheet,
+  Image,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Button, Input } from "@/components/ui";
+import { AttachmentPicker, type AttachmentFile } from "@/components/shared/AttachmentPicker";
 import { useFinanceStore } from "@/stores/financeStore";
+import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/contexts/ThemeContext";
 import type { FinanceCategory, Transaction } from "@/types";
 
 export default function EditTransactionScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { transactions, categories, fetchCategories, updateTransaction, isLoading } = useFinanceStore();
+  const { user, household } = useAuthStore();
+  const { transactions, categories, attachments, fetchCategories, updateTransaction, fetchAttachments, addAttachment, deleteAttachment, isLoading } = useFinanceStore();
   const { theme } = useTheme();
 
   const [transaction, setTransaction] = useState<Transaction | null>(null);
@@ -32,6 +36,7 @@ export default function EditTransactionScreen() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
+  const [newAttachments, setNewAttachments] = useState<AttachmentFile[]>([]);
 
   useEffect(() => {
     fetchCategories();
@@ -47,6 +52,9 @@ export default function EditTransactionScreen() {
       setSelectedCategory(found.category || null);
       setDate(found.date || new Date().toISOString().split("T")[0]);
       setNotes(found.notes || "");
+
+      // Fetch existing attachments
+      fetchAttachments(found.id);
       setLoading(false);
     } else {
       setLoading(false);
@@ -71,6 +79,34 @@ export default function EditTransactionScreen() {
     return new Date().toISOString().split("T")[0];
   };
 
+  const handleAttachmentAdded = (file: AttachmentFile) => {
+    setNewAttachments((prev) => [...prev, file]);
+  };
+
+  const handleNewAttachmentDelete = (index: number) => {
+    setNewAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleExistingAttachmentDelete = async (attachmentId: string) => {
+    Alert.alert(
+      "Confirmar exclusao",
+      "Deseja realmente excluir este anexo?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            const { error } = await deleteAttachment(attachmentId);
+            if (error) {
+              Alert.alert("Erro", error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleSubmit = async () => {
     if (!description.trim()) {
       Alert.alert("Erro", "Digite uma descricao");
@@ -82,6 +118,10 @@ export default function EditTransactionScreen() {
     }
     if (!transaction) {
       Alert.alert("Erro", "Transacao nao encontrada");
+      return;
+    }
+    if (!household?.id) {
+      Alert.alert("Erro", "Household nao encontrado");
       return;
     }
 
@@ -99,6 +139,14 @@ export default function EditTransactionScreen() {
       Alert.alert("Erro", error);
       return;
     }
+
+    // Upload new attachments if any
+    if (newAttachments.length > 0) {
+      for (const file of newAttachments) {
+        await addAttachment(transaction.id, household.id, file, user?.id);
+      }
+    }
+
     router.back();
   };
 
@@ -182,6 +230,58 @@ export default function EditTransactionScreen() {
 
           <Input label="Observacoes (opcional)" placeholder="Detalhes adicionais..." value={notes} onChangeText={setNotes} multiline numberOfLines={2} autoCapitalize="sentences" />
 
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, { color: theme.gray[700] }]}>Anexos</Text>
+
+            {/* Existing attachments */}
+            {attachments.length > 0 && (
+              <View style={styles.attachmentsGrid}>
+                {attachments.map((att) => (
+                  <View key={att.id} style={[styles.attachmentCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    {att.file_type?.startsWith("image/") ? (
+                      <Image source={{ uri: att.file_url }} style={styles.attachmentImage} />
+                    ) : (
+                      <View style={[styles.attachmentPlaceholder, { backgroundColor: theme.surfaceVariant }]}>
+                        <Ionicons name="document-outline" size={32} color={theme.gray[400]} />
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      onPress={() => handleExistingAttachmentDelete(att.id)}
+                      style={[styles.attachmentDeleteButton, { backgroundColor: theme.danger }]}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* New attachments */}
+            {newAttachments.length > 0 && (
+              <View style={styles.attachmentsGrid}>
+                {newAttachments.map((file, index) => (
+                  <View key={index} style={[styles.attachmentCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    {file.type?.startsWith("image/") ? (
+                      <Image source={{ uri: file.uri }} style={styles.attachmentImage} />
+                    ) : (
+                      <View style={[styles.attachmentPlaceholder, { backgroundColor: theme.surfaceVariant }]}>
+                        <Ionicons name="document-outline" size={32} color={theme.gray[400]} />
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      onPress={() => handleNewAttachmentDelete(index)}
+                      style={[styles.attachmentDeleteButton, { backgroundColor: theme.danger }]}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <AttachmentPicker onAttachmentAdded={handleAttachmentAdded} />
+          </View>
+
           <View style={styles.submitContainer}>
             <Button onPress={handleSubmit} loading={isLoading} disabled={!description.trim() || !amount.trim()} fullWidth size="lg" variant={type === "income" ? "primary" : "danger"}>
               Salvar Alteracoes
@@ -221,5 +321,10 @@ const styles = StyleSheet.create({
   quickDateButton: { marginRight: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
   quickDateText: {},
   quickDateTextSelected: { color: '#FFFFFF', fontWeight: '500' },
+  attachmentsGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 },
+  attachmentCard: { width: 100, height: 100, borderRadius: 12, marginRight: 8, marginBottom: 8, position: 'relative', borderWidth: 1 },
+  attachmentImage: { width: '100%', height: '100%', borderRadius: 12 },
+  attachmentPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  attachmentDeleteButton: { position: 'absolute', top: 4, right: 4, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 2, elevation: 3 },
   submitContainer: { marginTop: 16, marginBottom: 32 },
 });

@@ -8,11 +8,13 @@ import {
   Platform,
   Alert,
   StyleSheet,
+  Image,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Button, Input } from "@/components/ui";
+import { AttachmentPicker, type AttachmentFile } from "@/components/shared/AttachmentPicker";
 import { useFinanceStore } from "@/stores/financeStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -22,7 +24,7 @@ export default function NewTransactionScreen() {
   const router = useRouter();
   const { type: initialType } = useLocalSearchParams<{ type?: string }>();
   const { user, household } = useAuthStore();
-  const { categories, fetchCategories, createTransaction, isLoading } = useFinanceStore();
+  const { categories, fetchCategories, createTransaction, addAttachment, isLoading } = useFinanceStore();
   const { theme } = useTheme();
 
   const [type, setType] = useState<"expense" | "income">(initialType === "income" ? "income" : "expense");
@@ -31,6 +33,7 @@ export default function NewTransactionScreen() {
   const [selectedCategory, setSelectedCategory] = useState<FinanceCategory | null>(null);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
 
   useEffect(() => { fetchCategories(); }, []);
 
@@ -52,6 +55,14 @@ export default function NewTransactionScreen() {
     return new Date().toISOString().split("T")[0];
   };
 
+  const handleAttachmentAdded = (file: AttachmentFile) => {
+    setAttachments((prev) => [...prev, file]);
+  };
+
+  const handleAttachmentDelete = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async () => {
     if (!description.trim()) { Alert.alert("Erro", "Digite uma descricao"); return; }
     if (!amount.trim()) { Alert.alert("Erro", "Digite o valor"); return; }
@@ -68,8 +79,16 @@ export default function NewTransactionScreen() {
       created_by: user?.id,
     };
 
-    const { error } = await createTransaction(transactionData);
+    const { error, data } = await createTransaction(transactionData);
     if (error) { Alert.alert("Erro", error); return; }
+
+    // Upload attachments if any
+    if (data && attachments.length > 0) {
+      for (const file of attachments) {
+        await addAttachment(data.id, household.id, file, user?.id);
+      }
+    }
+
     router.back();
   };
 
@@ -134,6 +153,61 @@ export default function NewTransactionScreen() {
 
           <Input label="Observacoes (opcional)" placeholder="Detalhes adicionais..." value={notes} onChangeText={setNotes} multiline numberOfLines={2} autoCapitalize="sentences" />
 
+          {/* Attachments */}
+          <AttachmentPicker
+            onAttachmentAdded={handleAttachmentAdded}
+            currentFilesCount={attachments.length}
+            maxFiles={10}
+          />
+
+          {/* Display selected attachments */}
+          {attachments.length > 0 && (
+            <View style={styles.attachmentsContainer}>
+              <Text style={[styles.attachmentsTitle, { color: theme.text }]}>
+                Anexos selecionados ({attachments.length})
+              </Text>
+              {attachments.map((file, index) => {
+                const isImage = file.type.startsWith("image/");
+                return (
+                  <View
+                    key={index}
+                    style={[
+                      styles.attachmentItem,
+                      { backgroundColor: theme.surface, borderColor: theme.border },
+                    ]}
+                  >
+                    {/* Thumbnail or Icon */}
+                    <View style={[styles.thumbnailContainer, { backgroundColor: theme.surfaceVariant }]}>
+                      {isImage ? (
+                        <Image source={{ uri: file.uri }} style={styles.thumbnail} />
+                      ) : (
+                        <Ionicons name="document-outline" size={24} color={theme.gray[500]} />
+                      )}
+                    </View>
+
+                    {/* File Info */}
+                    <View style={styles.fileInfo}>
+                      <Text style={[styles.fileName, { color: theme.text }]} numberOfLines={1}>
+                        {file.name}
+                      </Text>
+                      <Text style={[styles.fileSize, { color: theme.textSecondary }]}>
+                        {file.size ? ((file.size / 1024).toFixed(1) + ' KB') : 'Tamanho desconhecido'}
+                      </Text>
+                    </View>
+
+                    {/* Delete Button */}
+                    <TouchableOpacity
+                      onPress={() => handleAttachmentDelete(index)}
+                      style={styles.deleteButton}
+                    >
+                      <Ionicons name="close-circle" size={24} color={theme.danger} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           <View style={styles.submitContainer}>
             <Button onPress={handleSubmit} loading={isLoading} disabled={!description.trim() || !amount.trim()} fullWidth size="lg" variant={type === "income" ? "primary" : "danger"}>
               {type === "expense" ? "Registrar Despesa" : "Registrar Receita"}
@@ -171,5 +245,14 @@ const styles = StyleSheet.create({
   quickDateButton: { marginRight: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
   quickDateText: {},
   quickDateTextSelected: { color: '#FFFFFF', fontWeight: '500' },
+  attachmentsContainer: { marginTop: 16, marginBottom: 16 },
+  attachmentsTitle: { fontSize: 14, fontWeight: '600', marginBottom: 12 },
+  attachmentItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  thumbnailContainer: { width: 48, height: 48, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  thumbnail: { width: 48, height: 48, borderRadius: 8 },
+  fileInfo: { flex: 1, marginRight: 8 },
+  fileName: { fontSize: 14, fontWeight: '500', marginBottom: 2 },
+  fileSize: { fontSize: 12 },
+  deleteButton: { padding: 4 },
   submitContainer: { marginTop: 16, marginBottom: 32 },
 });

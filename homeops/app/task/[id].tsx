@@ -16,6 +16,7 @@ import { StatusBadge } from "@/components/shared";
 import { useTaskStore } from "@/stores/taskStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/contexts/ThemeContext";
+import { CompletionModal } from "@/components/tasks/CompletionModal";
 import type { Task } from "@/types";
 
 export default function TaskDetailScreen() {
@@ -26,22 +27,31 @@ export default function TaskDetailScreen() {
   const { theme } = useTheme();
 
   const [task, setTask] = useState<Task | null>(null);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
 
   useEffect(() => {
     const found = tasks.find((t) => t.id === id);
     setTask(found || null);
   }, [id, tasks]);
 
-  const handleComplete = async () => {
-    if (!task || !user?.id) return;
+  const handleComplete = () => {
+    if (!task) return;
+    setShowCompletionModal(true);
+  };
 
-    const { error } = await completeTask(task.id, user.id);
+  const handleConfirmComplete = async (taskId: string, completedAt?: string) => {
+    if (!user?.id) return;
+
+    const { error } = await completeTask(taskId, user.id, completedAt);
     if (error) {
       Alert.alert("Erro", error);
       return;
     }
 
-    if (!task.is_recurring) {
+    setShowCompletionModal(false);
+
+    const completedTask = tasks.find((t) => t.id === taskId);
+    if (completedTask && !completedTask.is_recurring) {
       router.back();
     }
   };
@@ -294,6 +304,13 @@ export default function TaskDetailScreen() {
           </View>
         )}
       </ScrollView>
+
+      <CompletionModal
+        visible={showCompletionModal}
+        task={task}
+        onClose={() => setShowCompletionModal(false)}
+        onComplete={handleConfirmComplete}
+      />
     </SafeAreaView>
   );
 }

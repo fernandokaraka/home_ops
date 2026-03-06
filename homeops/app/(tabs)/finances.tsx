@@ -22,6 +22,8 @@ import {
   getOverdueBills,
   getTotalBillsAmount,
   getExpensesByCategory,
+  getCriticalBudgetAlerts,
+  getGoalProjections,
 } from "@/stores/financeStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -36,10 +38,14 @@ export default function FinancesScreen() {
     bills,
     transactions,
     monthlySummary,
+    budgets,
+    financialGoals,
     fetchBills,
     fetchTransactions,
     fetchCategories,
     calculateMonthlySummary,
+    fetchBudgets,
+    fetchFinancialGoals,
     markBillAsPaid,
     isLoading,
   } = useFinanceStore();
@@ -60,6 +66,8 @@ export default function FinancesScreen() {
       fetchTransactions(household.id),
       fetchCategories(),
       calculateMonthlySummary(household.id),
+      fetchBudgets(household.id),
+      fetchFinancialGoals(household.id),
     ]);
   };
 
@@ -102,12 +110,14 @@ export default function FinancesScreen() {
   const overdueBills = getOverdueBills(bills);
   const totalBills = getTotalBillsAmount(bills);
   const expensesByCategory = getExpensesByCategory(transactions);
+  const criticalBudgetAlerts = getCriticalBudgetAlerts(budgets, transactions);
+  const activeGoalProjections = getGoalProjections(financialGoals);
 
   const renderOverview = () => (
     <>
       {/* Summary Cards */}
       <View style={styles.summaryRow}>
-        <Card style={[styles.summaryCard, styles.summaryCardLeft, { backgroundColor: theme.success + '15' }]}>
+        <Card style={{ ...styles.summaryCard, ...styles.summaryCardLeft, backgroundColor: theme.success + '15' }}>
           <View style={styles.summaryContent}>
             <Ionicons name="trending-up" size={28} color={theme.success} />
             <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Receitas</Text>
@@ -116,7 +126,7 @@ export default function FinancesScreen() {
             </Text>
           </View>
         </Card>
-        <Card style={[styles.summaryCard, styles.summaryCardRight, { backgroundColor: theme.danger + '15' }]}>
+        <Card style={{ ...styles.summaryCard, ...styles.summaryCardRight, backgroundColor: theme.danger + '15' }}>
           <View style={styles.summaryContent}>
             <Ionicons name="trending-down" size={28} color={theme.danger} />
             <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Despesas</Text>
@@ -141,6 +151,188 @@ export default function FinancesScreen() {
               <Ionicons name="wallet" size={32} color={theme.surface} />
             </View>
           </View>
+        </Card>
+      </View>
+
+      {/* Budget Alerts */}
+      {criticalBudgetAlerts.length > 0 && (
+        <View style={styles.section}>
+          {criticalBudgetAlerts.slice(0, 2).map((alert) => (
+            <View
+              key={alert.budget.id}
+              style={[
+                styles.alertCard,
+                {
+                  backgroundColor: alert.status === 'danger' ? theme.danger + '15' : theme.warning + '15',
+                  borderColor: alert.status === 'danger' ? theme.danger + '40' : theme.warning + '40',
+                },
+              ]}
+            >
+              <View style={styles.alertRow}>
+                <Ionicons
+                  name="alert-circle"
+                  size={24}
+                  color={alert.status === 'danger' ? theme.danger : theme.warning}
+                />
+                <View style={styles.alertContent}>
+                  <Text
+                    style={[
+                      styles.alertTitle,
+                      { color: alert.status === 'danger' ? theme.danger : theme.warning },
+                    ]}
+                  >
+                    {alert.budget.category?.name || 'Categoria'}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.alertText,
+                      { color: alert.status === 'danger' ? theme.danger : theme.warning },
+                    ]}
+                  >
+                    {alert.percentageUsed >= 100
+                      ? `Excedeu em ${formatCurrency(Math.abs(alert.remaining))}`
+                      : `${alert.percentageUsed.toFixed(0)}% do orcamento usado`}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Budgets Summary */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Orcamentos</Text>
+          <TouchableOpacity onPress={() => router.push("/finance/budgets")}>
+            <Text style={[styles.linkText, { color: theme.primary }]}>Ver todos</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Card>
+          {budgets.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="pie-chart-outline" size={40} color={theme.textMuted} />
+              <Text style={[styles.emptyText, { color: theme.textMuted }]}>
+                Nenhum orcamento definido
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/finance/budgets")}
+                style={[styles.smallButton, { backgroundColor: theme.primary }]}
+              >
+                <Text style={[styles.smallButtonText, { color: theme.surface }]}>
+                  Criar Orcamento
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <View style={styles.budgetStats}>
+                <View style={styles.budgetStatItem}>
+                  <Text style={[styles.budgetStatValue, { color: theme.text }]}>
+                    {budgets.length}
+                  </Text>
+                  <Text style={[styles.budgetStatLabel, { color: theme.textSecondary }]}>
+                    Categorias
+                  </Text>
+                </View>
+                <View style={styles.budgetStatItem}>
+                  <Text style={[styles.budgetStatValue, { color: theme.warning }]}>
+                    {criticalBudgetAlerts.filter((a) => a.status === 'warning').length}
+                  </Text>
+                  <Text style={[styles.budgetStatLabel, { color: theme.textSecondary }]}>
+                    Alertas
+                  </Text>
+                </View>
+                <View style={styles.budgetStatItem}>
+                  <Text style={[styles.budgetStatValue, { color: theme.danger }]}>
+                    {criticalBudgetAlerts.filter((a) => a.status === 'danger').length}
+                  </Text>
+                  <Text style={[styles.budgetStatLabel, { color: theme.textSecondary }]}>
+                    Excedidos
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
+        </Card>
+      </View>
+
+      {/* Financial Goals Summary */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Metas Financeiras</Text>
+          <TouchableOpacity onPress={() => router.push("/finance/goals")}>
+            <Text style={[styles.linkText, { color: theme.primary }]}>Ver todas</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Card>
+          {activeGoalProjections.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="flag-outline" size={40} color={theme.textMuted} />
+              <Text style={[styles.emptyText, { color: theme.textMuted }]}>
+                Nenhuma meta ativa
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/finance/goals")}
+                style={[styles.smallButton, { backgroundColor: theme.primary }]}
+              >
+                <Text style={[styles.smallButtonText, { color: theme.surface }]}>
+                  Criar Meta
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {activeGoalProjections.slice(0, 2).map((projection) => (
+                <View
+                  key={projection.goal.id}
+                  style={[styles.goalRow, { borderBottomColor: theme.surfaceVariant }]}
+                >
+                  <View style={styles.goalInfo}>
+                    <Text style={[styles.goalName, { color: theme.text }]}>
+                      {projection.goal.name}
+                    </Text>
+                    <View style={styles.goalProgress}>
+                      <View style={[styles.goalProgressBar, { backgroundColor: theme.border }]}>
+                        <View
+                          style={[
+                            styles.goalProgressFill,
+                            {
+                              backgroundColor: projection.isOnTrack ? theme.success : theme.warning,
+                              width: `${Math.min(projection.progressPercentage, 100)}%`,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.goalProgressText, { color: theme.textSecondary }]}>
+                        {projection.progressPercentage.toFixed(0)}%
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.goalAmount}>
+                    <Text style={[styles.goalCurrentAmount, { color: theme.text }]}>
+                      {formatCurrency(projection.goal.current_amount)}
+                    </Text>
+                    <Text style={[styles.goalTargetAmount, { color: theme.textSecondary }]}>
+                      de {formatCurrency(projection.goal.target_amount)}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+              {activeGoalProjections.length > 2 && (
+                <TouchableOpacity
+                  onPress={() => router.push("/finance/goals")}
+                  style={styles.viewMoreButton}
+                >
+                  <Text style={[styles.viewMoreText, { color: theme.primary }]}>
+                    Ver mais {activeGoalProjections.length - 2} meta(s)
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </Card>
       </View>
 
@@ -657,5 +849,107 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 80,
+  },
+  alertCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  alertRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  alertContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  alertTitle: {
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  alertText: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  budgetStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 8,
+  },
+  budgetStatItem: {
+    alignItems: 'center',
+  },
+  budgetStatValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  budgetStatLabel: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+  smallButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  smallButtonText: {
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  goalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  goalInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  goalName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  goalProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  goalProgressBar: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginRight: 8,
+  },
+  goalProgressFill: {
+    height: '100%',
+  },
+  goalProgressText: {
+    fontSize: 12,
+    fontWeight: '500',
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  goalAmount: {
+    alignItems: 'flex-end',
+  },
+  goalCurrentAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  goalTargetAmount: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  viewMoreButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  viewMoreText: {
+    fontWeight: '500',
   },
 });

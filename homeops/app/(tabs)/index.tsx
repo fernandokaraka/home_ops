@@ -26,6 +26,8 @@ import {
 } from "@/stores/financeStore";
 import { Card } from "@/components/ui";
 import { useTheme } from "@/contexts/ThemeContext";
+import { CompletionModal } from "@/components/tasks/CompletionModal";
+import type { Task } from "@/types";
 
 interface QuickStatCardProps {
   title: string;
@@ -74,6 +76,8 @@ export default function DashboardScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   useEffect(() => {
     if (household?.id) {
@@ -98,9 +102,15 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, [household?.id]);
 
-  const handleCompleteTask = async (taskId: string) => {
+  const handleCompleteTask = (task: Task) => {
+    setSelectedTask(task);
+    setShowCompletionModal(true);
+  };
+
+  const handleComplete = async (taskId: string, completedAt?: string) => {
     if (!user?.id) return;
-    await completeTask(taskId, user.id);
+    await completeTask(taskId, user.id, completedAt);
+    setShowCompletionModal(false);
   };
 
   const getGreeting = () => {
@@ -249,7 +259,7 @@ export default function DashboardScreen() {
                     style={[styles.taskItem, { backgroundColor: theme.surface }]}
                   >
                     <TouchableOpacity
-                      onPress={() => handleCompleteTask(task.id)}
+                      onPress={() => handleCompleteTask(task)}
                       style={[styles.taskCheckbox, { borderColor: theme.border }]}
                     />
                     <View style={styles.flex1}>
@@ -452,6 +462,13 @@ export default function DashboardScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <CompletionModal
+        visible={showCompletionModal}
+        task={selectedTask}
+        onClose={() => setShowCompletionModal(false)}
+        onComplete={handleComplete}
+      />
     </SafeAreaView>
   );
 }

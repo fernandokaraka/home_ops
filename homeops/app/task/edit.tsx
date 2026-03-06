@@ -9,12 +9,15 @@ import {
   Alert,
   ActivityIndicator,
   StyleSheet,
+  Image,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Button, Input } from "@/components/ui";
+import { AttachmentPicker, type AttachmentFile } from "@/components/shared/AttachmentPicker";
 import { useTaskStore } from "@/stores/taskStore";
+import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/contexts/ThemeContext";
 import type { TaskCategory, Task } from "@/types";
 
@@ -23,7 +26,8 @@ type RecurrenceType = "daily" | "weekly" | "monthly" | null;
 export default function EditTaskScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { tasks, categories, fetchCategories, updateTask, isLoading } = useTaskStore();
+  const { user, household } = useAuthStore();
+  const { tasks, categories, attachments, fetchCategories, updateTask, fetchAttachments, addAttachment, deleteAttachment, isLoading } = useTaskStore();
   const { theme } = useTheme();
 
   const [task, setTask] = useState<Task | null>(null);
@@ -37,6 +41,7 @@ export default function EditTaskScreen() {
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>(null);
   const [estimatedMinutes, setEstimatedMinutes] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [newAttachments, setNewAttachments] = useState<AttachmentFile[]>([]);
 
   useEffect(() => {
     fetchCategories();
@@ -55,6 +60,9 @@ export default function EditTaskScreen() {
       setIsRecurring(found.is_recurring || false);
       setRecurrenceType((found.recurrence_type as RecurrenceType) || null);
       setEstimatedMinutes(found.estimated_minutes?.toString() || "");
+
+      // Fetch existing attachments
+      fetchAttachments(found.id);
       setLoading(false);
     } else {
       setLoading(false);
@@ -111,6 +119,34 @@ export default function EditTaskScreen() {
     return null;
   };
 
+  const handleAttachmentAdded = (file: AttachmentFile) => {
+    setNewAttachments((prev) => [...prev, file]);
+  };
+
+  const handleNewAttachmentDelete = (index: number) => {
+    setNewAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleExistingAttachmentDelete = async (attachmentId: string) => {
+    Alert.alert(
+      "Confirmar exclusao",
+      "Deseja realmente excluir este anexo?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            const { error } = await deleteAttachment(attachmentId);
+            if (error) {
+              Alert.alert("Erro", error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleSubmit = async () => {
     if (!title.trim()) {
       Alert.alert("Erro", "Digite um titulo para a tarefa");
@@ -119,6 +155,11 @@ export default function EditTaskScreen() {
 
     if (!task) {
       Alert.alert("Erro", "Tarefa nao encontrada");
+      return;
+    }
+
+    if (!household?.id) {
+      Alert.alert("Erro", "Household nao encontrado");
       return;
     }
 
@@ -139,6 +180,13 @@ export default function EditTaskScreen() {
     if (error) {
       Alert.alert("Erro", error);
       return;
+    }
+
+    // Upload new attachments if any
+    if (newAttachments.length > 0) {
+      for (const file of newAttachments) {
+        await addAttachment(task.id, household.id, file, user?.id);
+      }
     }
 
     router.back();
@@ -398,6 +446,127 @@ export default function EditTaskScreen() {
             icon="hourglass-outline"
           />
 
+          {/* Attachments */}
+          <AttachmentPicker
+            onAttachmentAdded={handleAttachmentAdded}
+            currentFilesCount={attachments.length + newAttachments.length}
+            maxFiles={10}
+          />
+
+          {/* Display existing attachments */}
+          {attachments.length > 0 && (
+            <View style={styles.attachmentsContainer}>
+              <Text style={[styles.attachmentsTitle, { color: theme.text }]}>
+                Anexos existentes ({attachments.length})
+              </Text>
+              {attachments.map((attachment) => {
+                const isImage = attachment.file_type.startsWith("image/");
+                return (
+                  <View
+                    key={attachment.id}
+                    style={[
+                      styles.attachmentItem,
+                      { backgroundColor: theme.surface, borderColor: theme.border },
+                    ]}
+                  >
+                    {/* Thumbnail or Icon */}
+                    <View style={[styles.thumbnailContainer, { backgroundColor: theme.surfaceVariant }]}>
+                      {isImage ? (
+                        <Image
+                          source={{ uri: attachment.file_url }}
+                          style={styles.thumbnail}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Ionicons name="document-outline" size={24} color={theme.gray[500]} />
+                      )}
+                    </View>
+
+                    {/* File Info */}
+                    <View style={styles.fileInfo}>
+                      <Text
+                        style={[styles.fileName, { color: theme.text }]}
+                        numberOfLines={1}
+                      >
+                        {attachment.file_name}
+                      </Text>
+                      {attachment.file_size && (
+                        <Text style={[styles.fileSize, { color: theme.textSecondary }]}>
+                          {(attachment.file_size / 1024).toFixed(1)} KB
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Delete Button */}
+                    <TouchableOpacity
+                      onPress={() => handleExistingAttachmentDelete(attachment.id)}
+                      style={styles.deleteButton}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={theme.danger} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Display new attachments to be uploaded */}
+          {newAttachments.length > 0 && (
+            <View style={styles.attachmentsContainer}>
+              <Text style={[styles.attachmentsTitle, { color: theme.text }]}>
+                Novos anexos ({newAttachments.length})
+              </Text>
+              {newAttachments.map((file, index) => {
+                const isImage = file.type.startsWith("image/");
+                return (
+                  <View
+                    key={index}
+                    style={[
+                      styles.attachmentItem,
+                      { backgroundColor: theme.surface, borderColor: theme.border },
+                    ]}
+                  >
+                    {/* Thumbnail or Icon */}
+                    <View style={[styles.thumbnailContainer, { backgroundColor: theme.surfaceVariant }]}>
+                      {isImage ? (
+                        <Image
+                          source={{ uri: file.uri }}
+                          style={styles.thumbnail}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Ionicons name="document-outline" size={24} color={theme.gray[500]} />
+                      )}
+                    </View>
+
+                    {/* File Info */}
+                    <View style={styles.fileInfo}>
+                      <Text
+                        style={[styles.fileName, { color: theme.text }]}
+                        numberOfLines={1}
+                      >
+                        {file.name}
+                      </Text>
+                      {file.size && (
+                        <Text style={[styles.fileSize, { color: theme.textSecondary }]}>
+                          {(file.size / 1024).toFixed(1)} KB
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Delete Button */}
+                    <TouchableOpacity
+                      onPress={() => handleNewAttachmentDelete(index)}
+                      style={styles.deleteButton}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={theme.danger} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           {/* Submit Button */}
           <View style={styles.submitContainer}>
             <Button
@@ -568,6 +737,50 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 14,
     fontWeight: '500',
+  },
+  attachmentsContainer: {
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  attachmentsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  attachmentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  thumbnailContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  fileInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  fileName: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  fileSize: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  deleteButton: {
+    padding: 8,
   },
   submitContainer: {
     marginTop: 16,

@@ -21,6 +21,7 @@ import {
 } from "@/stores/taskStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/contexts/ThemeContext";
+import { CompletionModal } from "@/components/tasks/CompletionModal";
 import type { Task } from "@/types";
 
 type TabFilter = "today" | "week" | "all";
@@ -39,6 +40,8 @@ export default function TasksScreen() {
 
   const [activeTab, setActiveTab] = useState<TabFilter>("today");
   const [refreshing, setRefreshing] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   useEffect(() => {
     if (household?.id) {
@@ -54,9 +57,15 @@ export default function TasksScreen() {
     setRefreshing(false);
   }, [household?.id]);
 
-  const handleComplete = async (taskId: string) => {
+  const handleCompleteWithModal = (task: Task) => {
+    setSelectedTask(task);
+    setShowCompletionModal(true);
+  };
+
+  const handleComplete = async (taskId: string, completedAt?: string) => {
     if (!user?.id) return;
-    await completeTask(taskId, user.id);
+    await completeTask(taskId, user.id, completedAt);
+    setShowCompletionModal(false);
   };
 
   const handleTaskPress = (task: Task) => {
@@ -247,7 +256,7 @@ export default function TasksScreen() {
                   <View style={styles.taskRow}>
                     {/* Checkbox */}
                     <TouchableOpacity
-                      onPress={() => handleComplete(task.id)}
+                      onPress={() => handleCompleteWithModal(task)}
                       style={[
                         styles.checkbox,
                         { borderColor: theme.border },
@@ -382,6 +391,13 @@ export default function TasksScreen() {
           <View style={styles.bottomSpacer} />
         </ScrollView>
       )}
+
+      <CompletionModal
+        visible={showCompletionModal}
+        task={selectedTask}
+        onClose={() => setShowCompletionModal(false)}
+        onComplete={handleComplete}
+      />
     </SafeAreaView>
   );
 }
